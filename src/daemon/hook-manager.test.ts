@@ -225,6 +225,30 @@ describe("HookManager", () => {
       expect(events).toEqual(["claude:add:alpha", "claude:rm:alpha"]);
     });
 
+    it("handleMarkerRemoved dispatches for a marker replayed on start()", async () => {
+      // A marker already on disk when the daemon starts is never seen by
+      // chokidar (ignoreInitial). Claude's /clear deletes it while the pid
+      // lives on, so a dropped removal leaves the old session as a paneless
+      // row until the zombie sweep.
+      const events: string[] = [];
+      manager.register(makeAdapter("claude", events));
+      manager.setContext(trivialContext());
+      const path = writeMarker("claude-s1", {
+        agent_type: "claude",
+        pid: 1,
+        tty: "/dev/ttys0",
+        session_id: "s1",
+        timestamp: 1,
+      });
+
+      await manager.start();
+      rmSync(path);
+      await manager.handleMarkerRemoved(path);
+      await manager.stop();
+
+      expect(events).toEqual(["claude:add:s1", "claude:rm:s1"]);
+    });
+
     it("does not call adapter hooks when no context is set", async () => {
       const events: string[] = [];
       manager.register(makeAdapter("claude", events));

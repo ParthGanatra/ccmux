@@ -7,6 +7,7 @@ import type { HookAdapter, HookManagerContext } from "./hook-adapter";
 import {
   getSessionPidMarker,
   getAllSessionPidMarkers,
+  getAllSessionPidMarkerFiles,
   filterMarkerCache,
   loadMarkerIntoCache,
   parseMarkerFile,
@@ -79,7 +80,10 @@ export class HookManager {
 
     // Replay existing markers through the adapter registry before starting
     // chokidar so initial state is consistent before live events begin.
-    for (const marker of getAllSessionPidMarkers()) {
+    // Seed lastSeenByPath too: chokidar skips these files (ignoreInitial),
+    // and once one is unlinked its payload can no longer be read back.
+    for (const { path, marker } of getAllSessionPidMarkerFiles()) {
+      this.lastSeenByPath.set(path, marker);
       await this.dispatchMarkerAdded(marker);
     }
 
@@ -157,9 +161,9 @@ export class HookManager {
   }
 
   /**
-   * Dispatch onMarkerRemoved for a previously-observed marker. Falls back
-   * to re-reading the file if the cache is cold (e.g., daemon started
-   * between add and remove events).
+   * Dispatch onMarkerRemoved for a previously-observed marker. The payload
+   * comes from lastSeenByPath, which start() seeds for markers already on
+   * disk. The re-read fallback only helps when the file still exists.
    */
   async handleMarkerRemoved(path: string): Promise<void> {
     const marker =

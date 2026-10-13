@@ -122,18 +122,28 @@ export function filterMarkerCache(
  * Get all session PID markers.
  */
 export function getAllSessionPidMarkers(): SessionPidMarker[] {
+  return getAllSessionPidMarkerFiles().map((f) => f.marker);
+}
+
+/**
+ * Get all session PID markers with the file path each was read from.
+ */
+export function getAllSessionPidMarkerFiles(): {
+  path: string;
+  marker: SessionPidMarker;
+}[] {
   DaemonPerf.incMarkerBatchReads();
   if (!existsSync(MARKERS_DIR)) return [];
 
   try {
     const files = readdirSync(MARKERS_DIR).filter((f) => f.endsWith(".json"));
-    const markers: SessionPidMarker[] = [];
+    const markers: { path: string; marker: SessionPidMarker }[] = [];
 
     for (const file of files) {
       try {
-        const content = readFileSync(join(MARKERS_DIR, file), "utf-8");
-        const marker = parseMarkerFile(content);
-        if (marker) markers.push(marker);
+        const path = join(MARKERS_DIR, file);
+        const marker = parseMarkerFile(readFileSync(path, "utf-8"));
+        if (marker) markers.push({ path, marker });
       } catch {
         // Skip unreadable files.
       }
